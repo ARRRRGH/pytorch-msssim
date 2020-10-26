@@ -24,7 +24,7 @@ def _fspecial_gauss_1d(size, sigma):
     return g.unsqueeze(0).unsqueeze(0)
 
 
-def gaussian_filter(input, win):
+def gaussian_filter(input, win, per_channel=False):
     r""" Blur input with 1-D kernel
     Args:
         input (torch.Tensor): a batch of tensors to be blurred
@@ -51,10 +51,13 @@ def gaussian_filter(input, win):
                 f"Skipping Gaussian Smoothing at dimension 2+{i} for input: {input.shape} and win size: {win.shape[-1]}"
             )
 
+    if not per_channel:
+        out = out.mean(1)
+
     return out
 
 
-def _ssim(X, Y, data_range, win, size_average=True, K=(0.01, 0.03)):
+def _ssim(X, Y, data_range, win, size_average=True, K=(0.01, 0.03), per_channel=True):
 
     r""" Calculate ssim index for X and Y
 
@@ -77,23 +80,28 @@ def _ssim(X, Y, data_range, win, size_average=True, K=(0.01, 0.03)):
 
     win = win.to(X.device, dtype=X.dtype)
 
-    mu1 = gaussian_filter(X, win)
-    mu2 = gaussian_filter(Y, win)
+    mu1 = gaussian_filter(X, win, per_channel)
+    mu2 = gaussian_filter(Y, win, per_channel)
 
     mu1_sq = mu1.pow(2)
     mu2_sq = mu2.pow(2)
     mu1_mu2 = mu1 * mu2
 
-    sigma1_sq = compensation * (gaussian_filter(X * X, win) - mu1_sq)
-    sigma2_sq = compensation * (gaussian_filter(Y * Y, win) - mu2_sq)
-    sigma12 = compensation * (gaussian_filter(X * Y, win) - mu1_mu2)
+    sigma1_sq = compensation * (gaussian_filter(X * X, win, per_channel) - mu1_sq)
+    sigma2_sq = compensation * (gaussian_filter(Y * Y, win, per_channel) - mu2_sq)
+    sigma12 = compensation * (gaussian_filter(X * Y, win, per_channel) - mu1_mu2)
 
     cs_map = (2 * sigma12 + C2) / (sigma1_sq + sigma2_sq + C2)  # set alpha=beta=gamma=1
     ssim_map = ((2 * mu1_mu2 + C1) / (mu1_sq + mu2_sq + C1)) * cs_map
 
-    ssim_per_channel = torch.flatten(ssim_map, 2).mean(-1)
-    cs = torch.flatten(cs_map, 2).mean(-1)
-    return ssim_per_channel, cs
+    if per_channel:
+        ssim_per_channel = torch.flatten(ssim_map, 2).mean(-1)
+        cs = torch.flatten(cs_map, 2).mean(-1)
+        return ssim_per_channel, cs
+    else:
+        ssim_per_batch = torch.flatten(ssim_map, 1).mean(-1)
+        cs = torch.flatten(cs_map, 1).mean(-1)
+        return ssim_per_batch, cs
 
 
 def ssim(
