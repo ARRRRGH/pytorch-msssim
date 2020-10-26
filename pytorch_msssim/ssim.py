@@ -54,7 +54,8 @@ def gaussian_filter(input, win):
     return out
 
 
-def _ssim(X, Y, data_range, win, size_average=True, K=(0.01, 0.03)):
+def _ssim(X, Y, data_range, win, size_average=True, K=(0.01, 0.03),
+          only_structure=False):
 
     r""" Calculate ssim index for X and Y
 
@@ -87,8 +88,11 @@ def _ssim(X, Y, data_range, win, size_average=True, K=(0.01, 0.03)):
     sigma1_sq = compensation * (gaussian_filter(X * X, win) - mu1_sq)
     sigma2_sq = compensation * (gaussian_filter(Y * Y, win) - mu2_sq)
     sigma12 = compensation * (gaussian_filter(X * Y, win) - mu1_mu2)
-
-    cs_map = (2 * sigma12 + C2) / (sigma1_sq + sigma2_sq + C2)  # set alpha=beta=gamma=1
+    
+    if not only_structure:
+        cs_map = (2 * sigma12 + C2) / (sigma1_sq + sigma2_sq + C2)  # set alpha=beta=gamma=1
+    else:
+        cs_map = (sigma12 + C2 / 2) / (torch.sqrt(sigma1_sq * sigma2_sq) + C2 / 2)
     ssim_map = ((2 * mu1_mu2 + C1) / (mu1_sq + mu2_sq + C1)) * cs_map
 
     ssim_per_channel = torch.flatten(ssim_map, 2).mean(-1)
