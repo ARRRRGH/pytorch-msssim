@@ -24,7 +24,7 @@ def _fspecial_gauss_1d(size, sigma):
     return g.unsqueeze(0).unsqueeze(0)
 
 
-def gaussian_filter(input, win, per_channel=False):
+def gaussian_filter(input, win, per_channel=True):
     r""" Blur input with 1-D kernel
     Args:
         input (torch.Tensor): a batch of tensors to be blurred
@@ -88,9 +88,9 @@ def _ssim(X, Y, data_range, win, size_average=True, K=(0.01, 0.03),
     mu2_sq = mu2.pow(2)
     mu1_mu2 = mu1 * mu2
 
-    sigma1_sq = compensation * (gaussian_filter(X * X, win) - mu1_sq)
-    sigma2_sq = compensation * (gaussian_filter(Y * Y, win) - mu2_sq)
-    sigma12 = compensation * (gaussian_filter(X * Y, win) - mu1_mu2)
+    sigma1_sq = compensation * (gaussian_filter(X * X, win, per_channel) - mu1_sq)
+    sigma2_sq = compensation * (gaussian_filter(Y * Y, win, per_channel) - mu2_sq)
+    sigma12 = compensation * (gaussian_filter(X * Y, win, per_channel) - mu1_mu2)
 
     if not only_structure:
         cs_map = (2 * sigma12 + C2) / (sigma1_sq + sigma2_sq + C2)  # set alpha=beta=gamma=1
@@ -119,6 +119,7 @@ def ssim(
     win=None,
     K=(0.01, 0.03),
     nonnegative_ssim=False,
+    *args, **kwargs
 ):
     r""" interface of ssim
     Args:
@@ -158,7 +159,8 @@ def ssim(
         win = _fspecial_gauss_1d(win_size, win_sigma)
         win = win.repeat([X.shape[1]] + [1] * (len(X.shape) - 1))
 
-    ssim_per_channel, cs = _ssim(X, Y, data_range=data_range, win=win, size_average=False, K=K)
+    ssim_per_channel, cs = _ssim(X, Y, data_range=data_range, win=win,
+                                 size_average=False, K=K, *args, **kwargs)
     if nonnegative_ssim:
         ssim_per_channel = torch.relu(ssim_per_channel)
 
@@ -169,8 +171,7 @@ def ssim(
 
 
 def ms_ssim(
-    X, Y, data_range=255, size_average=True, win_size=11, win_sigma=1.5, win=None, weights=None, K=(0.01, 0.03)
-):
+    X, Y, data_range=255, size_average=True, win_size=11, win_sigma=1.5, win=None, weights=None, K=(0.01, 0.03), *args, **kwargs):
 
     r""" interface of ms-ssim
     Args:
@@ -225,7 +226,8 @@ def ms_ssim(
     levels = weights.shape[0]
     mcs = []
     for i in range(levels):
-        ssim_per_channel, cs = _ssim(X, Y, win=win, data_range=data_range, size_average=False, K=K)
+        ssim_per_channel, cs = _ssim(X, Y, win=win, data_range=data_range,
+                                     size_average=False, K=K, *args, **kwargs)
 
         if i < levels - 1:
             mcs.append(torch.relu(cs))
